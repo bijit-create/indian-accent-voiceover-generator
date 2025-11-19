@@ -1,0 +1,5 @@
+{
+  "name": "Indian Accent Voiceover Generator",
+  "description": "An application to bulk generate voiceovers from an Excel file. Features include user-provided API keys, selectable batch sizes, retry for failed items, and downloading all audio files as a zip archive.",
+  "requestFramePermissions": []
+}
