@@ -43,42 +43,78 @@ if not dist_path.exists():
     """)
     st.stop()
 
-# Read the built HTML
+# Read all necessary files
 with open(dist_path, 'r', encoding='utf-8') as f:
     html_content = f.read()
 
-# Read the JavaScript files and inline them
+# Read the JavaScript files
 assets_dir = Path("dist/assets")
-js_files = sorted(assets_dir.glob("*.js"))
+js_files = list(assets_dir.glob("*.js"))
 
-js_scripts = ""
+# Read all JS content
+js_contents = {}
 for js_file in js_files:
     with open(js_file, 'r', encoding='utf-8') as f:
-        js_content = f.read()
-        js_scripts += f'<script type="module">{js_content}</script>\n'
+        js_contents[js_file.name] = f.read()
 
-# Inject API key and inline scripts
-injection = f"""
-<script>
-  window.process = {{ 
-    env: {{ 
-      API_KEY: "{api_key}" 
-    }} 
-  }};
-</script>
-{js_scripts}
+# Create a complete standalone HTML with everything embedded
+full_html = f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Voiceover Generator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {{
+        theme: {{
+          extend: {{
+            fontFamily: {{
+              sans: ['Inter', 'sans-serif'],
+            }},
+          }},
+        }},
+      }}
+    </script>
+    <script type="importmap">
+    {{
+      "imports": {{
+        "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+        "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
+        "react/": "https://aistudiocdn.com/react@^19.2.0/",
+        "react": "https://aistudiocdn.com/react@^19.2.0"
+      }}
+    }}
+    </script>
+    <script>
+      window.process = {{ 
+        env: {{ 
+          API_KEY: "{api_key}" 
+        }} 
+      }};
+    </script>
+</head>
+<body>
+    <div id="root"></div>
+    <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.all.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script type="module">
+{js_contents.get('index-1j-paCA_.js', '')}
+    </script>
+    <script type="module">
+{js_contents.get('index-vanFsCzP.js', '')}
+    </script>
+</body>
+</html>
 """
 
-# Remove external script references from HTML
-import re
-html_content = re.sub(r'<script[^>]*src="[^"]*"[^>]*></script>', '', html_content)
-html_content = re.sub(r'<link[^>]*href="/index\.css"[^>]*>', '', html_content)
-
-# Inject before closing body tag
-html_content = html_content.replace('</body>', injection + '</body>')
-
 # Render the complete HTML
-components.html(html_content, height=1000, scrolling=True)
+components.html(full_html, height=1000, scrolling=True)
 
 # Optional: Add footer
 st.markdown("---")
