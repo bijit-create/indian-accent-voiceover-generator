@@ -43,52 +43,42 @@ if not dist_path.exists():
     """)
     st.stop()
 
-# Start a simple HTTP server for the dist folder in a separate thread
-import threading
-import http.server
-import socketserver
-import time
+# Read the built HTML
+with open(dist_path, 'r', encoding='utf-8') as f:
+    html_content = f.read()
 
-PORT = 8503
+# Read the JavaScript files and inline them
+assets_dir = Path("dist/assets")
+js_files = sorted(assets_dir.glob("*.js"))
 
-def start_server():
-    """Start HTTP server for serving static files"""
-    os.chdir('dist')
-    Handler = http.server.SimpleHTTPRequestHandler
-    with socketserver.TCPServer(("", PORT), Handler) as httpd:
-        httpd.serve_forever()
+js_scripts = ""
+for js_file in js_files:
+    with open(js_file, 'r', encoding='utf-8') as f:
+        js_content = f.read()
+        js_scripts += f'<script type="module">{js_content}</script>\n'
 
-# Start server in background thread if not already running
-if 'server_started' not in st.session_state:
-    server_thread = threading.Thread(target=start_server, daemon=True)
-    server_thread.start()
-    time.sleep(1)  # Give server time to start
-    st.session_state.server_started = True
-
-# Create an iframe that loads from the local server with API key injected
-iframe_html = f"""
-<!DOCTYPE html>
-<html>
-<head>
-    <script>
-        window.process = {{ 
-            env: {{ 
-                API_KEY: "{api_key}" 
-            }} 
-        }};
-    </script>
-</head>
-<body style="margin:0;padding:0;overflow:hidden">
-    <iframe src="http://localhost:{PORT}" 
-            style="width:100%;height:1000px;border:none;" 
-            frameborder="0">
-    </iframe>
-</body>
-</html>
+# Inject API key and inline scripts
+injection = f"""
+<script>
+  window.process = {{ 
+    env: {{ 
+      API_KEY: "{api_key}" 
+    }} 
+  }};
+</script>
+{js_scripts}
 """
 
-# Render the iframe
-components.html(iframe_html, height=1000, scrolling=True)
+# Remove external script references from HTML
+import re
+html_content = re.sub(r'<script[^>]*src="[^"]*"[^>]*></script>', '', html_content)
+html_content = re.sub(r'<link[^>]*href="/index\.css"[^>]*>', '', html_content)
+
+# Inject before closing body tag
+html_content = html_content.replace('</body>', injection + '</body>')
+
+# Render the complete HTML
+components.html(html_content, height=1000, scrolling=True)
 
 # Optional: Add footer
 st.markdown("---")
