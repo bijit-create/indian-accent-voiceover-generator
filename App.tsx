@@ -133,7 +133,7 @@ declare global {
   }
 }
 
-type AppStep = 'upload' | 'columns' | 'processing';
+type AppStep = 'upload' | 'columns' | 'processing' | 'single';
 
 interface ResultItem {
   id: number;
@@ -186,6 +186,10 @@ const App: React.FC = () => {
   // Batch selection state
   const [startRow, setStartRow] = useState<number>(1);
   const [batchSize, setBatchSize] = useState<number>(0);
+
+  // Single mode state
+  const [singleText, setSingleText] = useState<string>('');
+  const [singleFilename, setSingleFilename] = useState<string>('');
 
   const [results, setResults] = useState<ResultItem[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -280,6 +284,32 @@ const App: React.FC = () => {
     setStep('processing');
     setIsProcessingPaused(false);
   }, [fileData, textColumn, filenameColumn, startRow, batchSize]);
+
+  const startSingleGeneration = useCallback(() => {
+    if (!singleText.trim() || !singleFilename.trim()) {
+      setError("Please provide both text and filename.");
+      return;
+    }
+
+    const initialResult: ResultItem = {
+      id: 0,
+      text: singleText,
+      filename: sanitizeFilename(singleFilename),
+      status: 'pending',
+    };
+    
+    setResults([initialResult]);
+    setStep('processing');
+    setIsProcessingPaused(false);
+  }, [singleText, singleFilename]);
+
+  const generateMore = useCallback(() => {
+    if (!fileData) return;
+    // Clear previous results and go back to column selection
+    setResults([]);
+    setStep('columns');
+    setError(null);
+  }, [fileData]);
 
   // Queue Management Effect
   useEffect(() => {
@@ -395,15 +425,91 @@ const App: React.FC = () => {
     switch (step) {
       case 'upload':
         return (
-          <div className="text-center py-12">
-            <label htmlFor="file-upload" className="cursor-pointer inline-flex flex-col items-center justify-center gap-4 bg-gray-50 border-2 border-dashed border-indigo-300 hover:border-indigo-500 text-gray-600 py-12 px-16 rounded-2xl transition-all duration-200 w-full">
-              <div className="bg-indigo-100 p-4 rounded-full text-indigo-600">
-                 <UploadIcon className="w-8 h-8" />
+          <div className="space-y-8">
+            {/* Mode Selector */}
+            <div className="flex justify-center gap-4">
+              <button
+                onClick={() => setStep('upload')}
+                className="px-6 py-3 rounded-lg font-semibold bg-indigo-600 text-white shadow-md"
+              >
+                📦 Batch Mode
+              </button>
+              <button
+                onClick={() => setStep('single')}
+                className="px-6 py-3 rounded-lg font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200"
+              >
+                📝 Single Text Mode
+              </button>
+            </div>
+            
+            <div className="text-center">
+              <label htmlFor="file-upload" className="cursor-pointer inline-flex flex-col items-center justify-center gap-4 bg-gray-50 border-2 border-dashed border-indigo-300 hover:border-indigo-500 text-gray-600 py-12 px-16 rounded-2xl transition-all duration-200 w-full">
+                <div className="bg-indigo-100 p-4 rounded-full text-indigo-600">
+                   <UploadIcon className="w-8 h-8" />
+                </div>
+                <span className="font-semibold text-lg">Click to Upload Excel File</span>
+                <span className="text-sm text-gray-400">.xlsx or .xls files supported</span>
+              </label>
+              <input id="file-upload" type="file" accept=".xlsx, .xls, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" className="hidden" onChange={handleFileChange} />
+            </div>
+          </div>
+        );
+      case 'single':
+        return (
+          <div className="space-y-6">
+            {/* Mode Selector */}
+            <div className="flex justify-center gap-4">
+              <button
+                onClick={() => setStep('upload')}
+                className="px-6 py-3 rounded-lg font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200"
+              >
+                📦 Batch Mode
+              </button>
+              <button
+                onClick={() => setStep('single')}
+                className="px-6 py-3 rounded-lg font-semibold bg-indigo-600 text-white shadow-md"
+              >
+                📝 Single Text Mode
+              </button>
+            </div>
+
+            <div className="bg-gray-50 p-8 rounded-xl space-y-6">
+              <h2 className="text-xl font-semibold text-center mb-4">Generate Single Voiceover</h2>
+              
+              <div>
+                <label htmlFor="single-text" className="block text-sm font-bold text-gray-700 mb-2">Text to Speak</label>
+                <textarea
+                  id="single-text"
+                  value={singleText}
+                  onChange={(e) => setSingleText(e.target.value)}
+                  placeholder="Enter the text you want to convert to speech..."
+                  rows={6}
+                  className="w-full p-4 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none resize-none"
+                />
+                <p className="text-xs text-gray-500 mt-1">Characters: {singleText.length}</p>
               </div>
-              <span className="font-semibold text-lg">Click to Upload Excel File</span>
-              <span className="text-sm text-gray-400">.xlsx or .xls files supported</span>
-            </label>
-            <input id="file-upload" type="file" accept=".xlsx, .xls, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" className="hidden" onChange={handleFileChange} />
+
+              <div>
+                <label htmlFor="single-filename" className="block text-sm font-bold text-gray-700 mb-2">Filename</label>
+                <input
+                  id="single-filename"
+                  type="text"
+                  value={singleFilename}
+                  onChange={(e) => setSingleFilename(e.target.value)}
+                  placeholder="my-audio-file"
+                  className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                />
+                <p className="text-xs text-gray-500 mt-1">Will be saved as: {sanitizeFilename(singleFilename || 'filename')}.mp3</p>
+              </div>
+
+              <button
+                onClick={startSingleGeneration}
+                disabled={!singleText.trim() || !singleFilename.trim()}
+                className="w-full bg-indigo-600 text-white font-bold py-4 px-6 rounded-xl hover:bg-indigo-700 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:bg-gray-300 disabled:cursor-not-allowed disabled:transform-none"
+              >
+                🎙️ Generate Voiceover
+              </button>
+            </div>
           </div>
         );
       case 'columns':
@@ -524,13 +630,24 @@ const App: React.FC = () => {
                     </span>
                  </div>
 
-                <button 
-                  onClick={handleDownloadZip} 
-                  disabled={completed === 0 || isZipping}
-                  className="inline-flex items-center justify-center gap-2 bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed shadow-sm">
-                  {isZipping ? <Loader className="w-5 h-5"/> : <ZipIcon className="w-5 h-5" />}
-                  {isZipping ? 'Compressing...' : `Download ZIP (${completed})`}
-                </button>
+                <div className="flex items-center gap-2">
+                  {/* Show Generate More button when all items are complete and we have fileData */}
+                  {fileData && pending === 0 && processing === 0 && completed > 0 && (
+                    <button 
+                      onClick={generateMore} 
+                      className="inline-flex items-center justify-center gap-2 bg-green-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-green-700 transition-colors shadow-sm">
+                      ➕ Generate More
+                    </button>
+                  )}
+                  
+                  <button 
+                    onClick={handleDownloadZip} 
+                    disabled={completed === 0 || isZipping}
+                    className="inline-flex items-center justify-center gap-2 bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed shadow-sm">
+                    {isZipping ? <Loader className="w-5 h-5"/> : <ZipIcon className="w-5 h-5" />}
+                    {isZipping ? 'Compressing...' : `Download ZIP (${completed})`}
+                  </button>
+                </div>
             </div>
 
             <div className="border rounded-xl overflow-hidden shadow-sm bg-white flex flex-col max-h-[500px]">
